@@ -1,0 +1,705 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Math Challenger</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap');
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f7f9fb;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .game-container {
+            max-width: 600px;
+            width: 95%;
+            padding: 2rem;
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 8px 10px -6px rgba(0, 0, 0, 0.1);
+            background-color: white;
+            border-radius: 1.5rem;
+            border: 1px solid #e5e7eb;
+            position: relative;
+        }
+        .equation-display {
+            min-height: 100px;
+            font-size: 3rem;
+            font-weight: 800;
+            color: #1f2937;
+            background-color: #eef2ff;
+            border-radius: 1rem;
+            padding: 1rem;
+            transition: all 0.3s ease;
+        }
+        .answer-button {
+            transition: all 0.2s ease;
+        }
+        .answer-button:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+        }
+        .loading-overlay, .game-over-overlay, .splash-overlay, .tutorial-overlay {
+            position: absolute;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(255, 255, 255, 0.95);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            z-index: 10;
+            border-radius: 1.5rem;
+        }
+        .blank {
+            background-color: #fca5a5;
+            color: #dc2626;
+            padding: 0 1rem;
+            border-radius: 0.5rem;
+            box-shadow: inset 0 1px 3px 0 rgba(0, 0, 0, 0.1);
+        }
+        /* Override Tailwind to ensure timer bar doesn't smooth transition width over time but steps */
+        #timer-bar {
+            transition: width 0.05s linear; 
+        }
+        /* Hunger Bar transition is slower to visually emphasize the decay */
+        #hunger-bar {
+            transition: width 0.5s ease; 
+        }
+        
+        .glowing-title {
+            text-shadow: 0 0 10px #4ade80, 0 0 20px #4ade80, 0 0 30px #4ade80;
+            animation: glow 1.5s ease-in-out infinite alternate;
+        }
+        @keyframes glow {
+            from {
+                text-shadow: 0 0 5px #10b981, 0 0 10px #10b981;
+            }
+            to {
+                text-shadow: 0 0 10px #34d399, 0 0 30px #34d399, 0 0 50px #34d399;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div id="game-container" class="game-container">
+        <h1 class="text-4xl font-extrabold text-center text-indigo-700 mb-4">Math Challenger</h1>
+        
+        <!-- Emoji Display -->
+        <div class="text-center mb-4">
+            <span id="game-emoji" class="text-5xl">😀</span>
+        </div>
+
+        <!-- Hunger Bar and Value -->
+        <div class="flex flex-col items-center mb-6">
+            <div id="hunger-bar-container" class="w-full h-4 rounded-full bg-gray-300 overflow-hidden">
+                <div id="hunger-bar" class="h-full bg-yellow-400" style="width: 100%;"></div>
+            </div>
+            <div class="text-sm text-gray-600 mt-1">Hunger: <span id="hunger-value">100</span>/100</div>
+        </div>
+        
+        <!-- Food Buttons Row -->
+        <div id="food-buttons-container" class="flex space-x-2 mb-8 hidden">
+            <button id="buy-apple-btn" onclick="buyFood(5, 5, 'Apple 🍎')" class="flex-1 bg-yellow-500 text-white p-3 rounded-xl font-bold text-base shadow-md hover:bg-yellow-600 focus:outline-none focus:ring-4 focus:ring-yellow-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                Apple 🍎 (5 Rp / 5 Hgr)
+            </button>
+            <button id="buy-bread-btn" onclick="buyFood(10, 10, 'Bread 🍞')" class="flex-1 bg-amber-600 text-white p-3 rounded-xl font-bold text-base shadow-md hover:bg-amber-700 focus:outline-none focus:ring-4 focus:ring-amber-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                Bread 🍞 (10 Rp / 10 Hgr)
+            </button>
+            <button id="buy-cake-btn" onclick="buyFood(20, 30, 'Cake 🎂')" class="flex-1 bg-pink-500 text-white p-3 rounded-xl font-bold text-base shadow-md hover:bg-pink-600 focus:outline-none focus:ring-4 focus:ring-pink-300 transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed">
+                Cake 🎂 (20 Rp / 30 Hgr)
+            </button>
+        </div>
+
+
+        <!-- Score & High Score Display -->
+        <div class="flex justify-between items-center mb-6 text-lg font-semibold text-gray-700">
+            <div>Score: <span id="current-score" class="text-indigo-600">0</span></div>
+            <div>High Score: <span id="high-score" class="text-pink-600">--</span></div>
+            <div class="text-sm text-gray-500">User ID: <span id="user-id-display">Loading...</span></div>
+        </div>
+
+        <!-- Equation Display -->
+        <div id="equation" class="equation-display flex justify-center items-center select-none mb-8 space-x-4 hidden">
+            <div id="comp-a">?</div>
+            <div id="comp-b">?</div>
+            <div id="comp-c">?</div>
+            <div>=</div>
+            <div id="comp-d">?</div>
+        </div>
+
+        <!-- Answer Buttons -->
+        <div id="answers" class="grid grid-cols-3 gap-4 hidden">
+            <button id="ans-1" class="answer-button bg-indigo-500 text-white p-4 rounded-xl font-bold text-xl shadow-lg hover:bg-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition-all duration-200" onclick="checkAnswer(this.textContent)">?</button>
+            <button id="ans-2" class="answer-button bg-indigo-500 text-white p-4 rounded-xl font-bold text-xl shadow-lg hover:bg-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition-all duration-200" onclick="checkAnswer(this.textContent)">?</button>
+            <button id="ans-3" class="answer-button bg-indigo-500 text-white p-4 rounded-xl font-bold text-xl shadow-lg hover:bg-indigo-600 focus:outline-none focus:ring-4 focus:ring-indigo-300 transition-all duration-200" onclick="checkAnswer(this.textContent)">?</button>
+        </div>
+        
+        <!-- Question Timer Bar -->
+        <div id="timer-bar-container" class="mt-8 mb-4 h-3 rounded-full bg-gray-200 overflow-hidden hidden">
+            <div id="timer-bar" class="h-full bg-red-500"></div>
+        </div>
+
+        <!-- Message/Feedback Display (Used only for buying food now) -->
+        <div id="feedback" class="text-center mt-6 h-6 font-semibold"></div>
+
+        <!-- SPLASH SCREEN OVERLAY -->
+        <div id="splash-overlay" class="splash-overlay hidden">
+            <div class="p-8 bg-white rounded-xl shadow-2xl text-center border-4 border-green-500 max-w-sm w-full">
+                <h2 class="text-5xl font-extrabold text-green-700 mb-6 glowing-title">Math Hunger</h2>
+                <p class="text-6xl mb-8">😋 🍎 🍞 🎂</p>
+                <button onclick="showTutorial()" class="bg-indigo-600 text-white p-4 px-10 rounded-xl font-bold text-xl shadow-lg hover:bg-indigo-700 transition-all duration-200 focus:outline-none focus:ring-4 focus:ring-indigo-300">
+                    Start Game
+                </button>
+            </div>
+        </div>
+
+        <!-- TUTORIAL OVERLAY -->
+        <div id="tutorial-overlay" class="tutorial-overlay hidden">
+            <div class="p-8 bg-white rounded-xl shadow-2xl text-center border-4 border-indigo-500 max-w-sm w-full">
+                <h2 class="text-3xl font-extrabold text-indigo-600 mb-6">How to Play</h2>
+                <p class="text-lg text-gray-700 mb-8 leading-relaxed">
+                    Answer question to get the money (Rp). Wrong answer will decrease the money (Rp). Buy the food before the hunger reach zero. The Game will end if you are running out of money (Rp). Good Luck!
+                </p>
+                <button onclick="startGame()" class="bg-green-600 text-white p-3 px-8 rounded-xl font-bold text-lg shadow-md hover:bg-green-700 transition-all duration-200">
+                    Got It!
+                </button>
+            </div>
+        </div>
+
+        <!-- Game Over Overlay -->
+        <div id="game-over-overlay" class="game-over-overlay hidden">
+            <div class="p-8 bg-white rounded-xl shadow-2xl text-center border-4 border-red-500">
+                <h2 id="game-over-title" class="text-6xl font-extrabold text-red-600 mb-4 animate-pulse">TIME OUT!</h2>
+                <p id="game-over-reason" class="text-xl text-gray-700 mb-6"></p>
+
+                <!-- Hunger Result Section -->
+                <div id="hunger-status-card" class="text-center mb-6 p-4 border rounded-lg bg-gray-50">
+                    <!-- The following two lines are hidden in JS to remove the emoji status and text -->
+                    <p class="text-4xl mb-2 hidden" id="hunger-emoji">?</p>
+                    <p class="text-lg font-bold text-gray-800 hidden" id="hunger-message">?</p>
+                    <p class="text-sm text-gray-500 mt-1">Final Hunger: <span id="final-hunger-value">100</span>/100</p>
+                </div>
+                <!-- End Hunger Result Section -->
+
+                <p class="text-lg font-bold text-gray-800 mb-8">Final Score: <span id="final-score" class="text-red-600">0</span> Rp</p>
+                <button onclick="restartGame()" class="bg-indigo-600 text-white p-3 px-6 rounded-xl font-bold text-lg shadow-md hover:bg-indigo-700 transition-all duration-200">Play Again</button>
+            </div>
+        </div>
+
+        <!-- Initial Firebase Loading Overlay -->
+        <div id="loading-overlay" class="loading-overlay hidden">
+            <div class="flex items-center space-x-3 text-indigo-600">
+                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                <span>Loading Game...</span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Firebase Imports -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
+        import { getAuth, signInAnonymously, signInWithCustomToken, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
+        import { getFirestore, doc, getDoc, setDoc } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+        import { setLogLevel } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
+
+        // Firestore Setup
+        const appId = typeof __app_id !== 'undefined' ? __app_id : 'default-math-game-id';
+        const firebaseConfig = JSON.parse(typeof __firebase_config !== 'undefined' ? __firebase_config : '{}');
+        const initialAuthToken = typeof __initial_auth_token !== 'undefined' ? __initial_auth_token : null;
+        
+        // Log setup (optional, but helpful for debugging)
+        setLogLevel('Debug');
+
+        let app, db, auth;
+        let userId = null;
+        let currentScore = 0;
+        let highScore = 0;
+        
+        // Timer Globals
+        const TIME_LIMIT_SECONDS = 10;
+        const TIME_STEP = 50; // Update frequency in milliseconds
+        let timerInterval = null;
+        let currentRemainingTime = TIME_LIMIT_SECONDS * 1000;
+
+        // Hunger Globals 
+        const HUNGER_MAX = 100;
+        const HUNGER_DECAY_RATE = 2; // Revised: Reduced from 5 to 2
+        const HUNGER_DECAY_INTERVAL = 5000; // 5 seconds in milliseconds
+
+        let currentHunger = HUNGER_MAX;
+        let hungerInterval = null; 
+
+        // Game State Variables
+        let gameState = {
+            a: null, b: null, c: null, d: null,
+            blanked_var: null, // 'a', 'b', 'c', or 'd'
+            correct_answer: null
+        };
+        
+        // Global functions exposed to the window
+        window.checkAnswer = checkAnswer;
+        window.generateQuestion = generateQuestion;
+        window.restartGame = restartGame; 
+        window.buyFood = buyFood; 
+        window.showTutorial = showTutorial; // New flow function
+        window.startGame = startGame;       // New flow function
+        
+        // Utility for exponential backoff retry logic
+        async function fetchWithRetry(apiCall, maxRetries = 3, delay = 1000) {
+            for (let i = 0; i < maxRetries; i++) {
+                try {
+                    return await apiCall();
+                } catch (error) {
+                    if (i === maxRetries - 1) throw error;
+                    await new Promise(resolve => setTimeout(resolve, delay * Math.pow(2, i)));
+                }
+            }
+        }
+
+        // --- Firebase Initialization and Auth ---
+        function initFirebase() {
+            try {
+                if (Object.keys(firebaseConfig).length > 0) {
+                    app = initializeApp(firebaseConfig);
+                    db = getFirestore(app);
+                    auth = getAuth(app);
+                    
+                    onAuthStateChanged(auth, async (user) => {
+                        if (user) {
+                            userId = user.uid;
+                            document.getElementById('user-id-display').textContent = userId.substring(0, 8) + '...';
+                            await loadHighScore();
+                            showSplash(); // Start with splash screen
+                        } else {
+                            console.log("User not authenticated. Running in guest mode.");
+                            document.getElementById('user-id-display').textContent = 'Guest (No Save)';
+                            showSplash(); // Start with splash screen
+                        }
+                    });
+
+                    // Sign in logic
+                    if (initialAuthToken) {
+                        fetchWithRetry(() => signInWithCustomToken(auth, initialAuthToken))
+                            .catch(error => {
+                                console.error("Custom token sign-in failed. Attempting anonymous sign-in.", error);
+                                fetchWithRetry(() => signInAnonymously(auth));
+                            });
+                    } else {
+                        fetchWithRetry(() => signInAnonymously(auth))
+                            .catch(error => console.error("Anonymous sign-in failed:", error));
+                    }
+                } else {
+                    console.error("Firebase config is missing. Running in local mode.");
+                    document.getElementById('user-id-display').textContent = 'Local Mode';
+                    showSplash(); // Start with splash screen
+                }
+            } catch (error) {
+                console.error("Firebase initialization failed:", error);
+                document.getElementById('user-id-display').textContent = 'Error Mode';
+                showSplash(); // Start with splash screen
+            }
+        }
+
+        // --- Intro and Game Start Functions ---
+
+        function showSplash() {
+            document.getElementById('loading-overlay').classList.add('hidden');
+            document.getElementById('splash-overlay').classList.remove('hidden');
+        }
+
+        function showTutorial() {
+            document.getElementById('splash-overlay').classList.add('hidden');
+            document.getElementById('tutorial-overlay').classList.remove('hidden');
+        }
+
+        function startGame() {
+            // Hide intro screens
+            document.getElementById('tutorial-overlay').classList.add('hidden');
+            document.getElementById('splash-overlay').classList.add('hidden');
+            
+            // Show game elements 
+            document.getElementById('equation').classList.remove('hidden');
+            document.getElementById('answers').classList.remove('hidden');
+            document.getElementById('timer-bar-container').classList.remove('hidden');
+            document.getElementById('food-buttons-container').classList.remove('hidden');
+            
+            // Reset and start game state
+            currentHunger = HUNGER_MAX;
+            currentScore = 0;
+            updateHungerUI();
+            startHungerDecay();
+            document.getElementById('current-score').textContent = 0;
+            generateQuestion();
+        }
+
+        // --- Firestore High Score Functions ---
+
+        async function loadHighScore() {
+            if (!db || !userId) return;
+            const docRef = doc(db, `artifacts/${appId}/users/${userId}/game_data`, "math_game_score");
+            try {
+                const docSnap = await fetchWithRetry(() => getDoc(docRef));
+                if (docSnap.exists()) {
+                    highScore = docSnap.data().score || 0;
+                } else {
+                    highScore = 0;
+                }
+                document.getElementById('high-score').textContent = highScore;
+            } catch (error) {
+                console.error("Error loading high score:", error);
+            }
+        }
+
+        async function saveHighScore() {
+            // Only save if the current score is positive and higher than the stored high score
+            if (!db || !userId || currentScore <= highScore || currentScore <= 0) return;
+            const docRef = doc(db, `artifacts/${appId}/users/${userId}/game_data`, "math_game_score");
+            try {
+                await fetchWithRetry(() => setDoc(docRef, { score: currentScore, timestamp: new Date() }, { merge: true }));
+                highScore = currentScore;
+                document.getElementById('high-score').textContent = highScore;
+            } catch (error) {
+                console.error("Error saving high score:", error);
+            }
+        }
+
+        // --- Question Timer Functions ---
+
+        function stopTimer() {
+            if (timerInterval) {
+                clearInterval(timerInterval);
+                timerInterval = null;
+            }
+        }
+
+        function startTimer() {
+            stopTimer(); 
+            currentRemainingTime = TIME_LIMIT_SECONDS * 1000;
+            const timerBar = document.getElementById('timer-bar');
+            timerBar.style.width = '100%';
+            timerBar.classList.remove('bg-orange-500', 'bg-green-500');
+            timerBar.classList.add('bg-red-500'); 
+
+            timerInterval = setInterval(() => {
+                currentRemainingTime -= TIME_STEP;
+                
+                if (currentRemainingTime <= 0) {
+                    stopTimer();
+                    timerBar.style.width = '0%';
+                    gameOver('TIME'); // Pass reason: TIME OUT
+                } else {
+                    const currentWidth = (currentRemainingTime / (TIME_LIMIT_SECONDS * 1000)) * 100;
+                    timerBar.style.width = `${currentWidth}%`;
+                    
+                    if (currentWidth < 30) {
+                        timerBar.classList.replace('bg-red-500', 'bg-orange-500');
+                    }
+                }
+            }, TIME_STEP);
+        }
+        
+        // --- Hunger Functions ---
+        
+        function stopHungerDecay() {
+            if (hungerInterval) {
+                clearInterval(hungerInterval);
+                hungerInterval = null;
+            }
+        }
+
+        function startHungerDecay() {
+            stopHungerDecay();
+            hungerInterval = setInterval(decayHunger, HUNGER_DECAY_INTERVAL);
+        }
+
+        function decayHunger() {
+            currentHunger = Math.max(0, currentHunger - HUNGER_DECAY_RATE);
+            updateHungerUI();
+        }
+
+        function updateHungerUI() {
+            const hungerBar = document.getElementById('hunger-bar');
+            const hungerValue = document.getElementById('hunger-value');
+            
+            const currentWidth = (currentHunger / HUNGER_MAX) * 100;
+            hungerBar.style.width = `${currentWidth}%`;
+            hungerValue.textContent = currentHunger;
+
+            // Update emoji based on hunger level
+            if (currentHunger > 75) {
+                document.getElementById('game-emoji').textContent = '😀';
+            } else if (currentHunger > 40) {
+                document.getElementById('game-emoji').textContent = '😐';
+            } else if (currentHunger > 0) {
+                document.getElementById('game-emoji').textContent = '😥';
+            } else {
+                document.getElementById('game-emoji').textContent = '😵';
+            }
+
+            // Update food button availability
+            const foodItems = [
+                { id: 'buy-apple-btn', cost: 5, gain: 5 },
+                { id: 'buy-bread-btn', cost: 10, gain: 10 },
+                { id: 'buy-cake-btn', cost: 20, gain: 30 }
+            ];
+
+            foodItems.forEach(item => {
+                const btn = document.getElementById(item.id);
+                // Can only buy if score meets cost AND hunger is not full
+                if (currentScore >= item.cost && currentHunger < HUNGER_MAX) {
+                    btn.disabled = false;
+                } else {
+                    btn.disabled = true;
+                }
+            });
+        }
+
+        function buyFood(cost, gain, name) {
+            if (currentScore >= cost) {
+                // Deduct cost
+                currentScore -= cost;
+                document.getElementById('current-score').textContent = currentScore;
+
+                // Add hunger, capped at max
+                currentHunger = Math.min(HUNGER_MAX, currentHunger + gain);
+
+                // Quick feedback 
+                const feedbackEl = document.getElementById('feedback');
+                feedbackEl.classList.remove('text-red-600', 'text-green-600');
+                feedbackEl.classList.add('text-yellow-600');
+                // REVISION: Change Pts to Rp
+                feedbackEl.textContent = `${name} bought! -${cost} Rp, +${gain} hgr.`;
+                
+                updateHungerUI();
+                
+                setTimeout(() => feedbackEl.textContent = '', 1000); // Shorter clear time
+            }
+        }
+
+        // --- Game Flow Functions ---
+
+        function gameOver(reason) {
+            // Stop all timers
+            stopTimer();
+            stopHungerDecay();
+            
+            // Hide game elements and food buttons
+            document.getElementById('equation').classList.add('hidden');
+            document.getElementById('answers').classList.add('hidden');
+            document.getElementById('timer-bar-container').classList.add('hidden');
+            document.getElementById('feedback').textContent = '';
+            document.getElementById('food-buttons-container').classList.add('hidden');
+
+            // --- Game Over Screen Logic ---
+            const titleEl = document.getElementById('game-over-title');
+            const reasonEl = document.getElementById('game-over-reason');
+            
+            if (reason === 'SCORE') {
+                titleEl.textContent = "OUT OF MONEY!";
+                reasonEl.textContent = "Your funds (Rp) dropped below zero!";
+                titleEl.classList.replace('text-red-600', 'text-amber-600');
+            } else { // TIME
+                titleEl.textContent = "TIME OUT!";
+                reasonEl.textContent = "You were too slow.";
+                titleEl.classList.replace('text-amber-600', 'text-red-600');
+            }
+
+            // --- Hunger Result Logic (No Status/Emoji for Game Over) ---
+            document.getElementById('hunger-emoji').classList.add('hidden');
+            document.getElementById('hunger-message').classList.add('hidden');
+            
+            document.getElementById('final-score').textContent = currentScore;
+            document.getElementById('final-hunger-value').textContent = currentHunger;
+            
+            document.getElementById('hunger-status-card').classList.remove('hidden'); 
+            
+            document.getElementById('game-over-overlay').classList.remove('hidden');
+            
+            // Reset score displayed in game-play UI for the next round
+            currentScore = 0;
+        }
+
+        function restartGame() {
+            // Hide overlay and start game directly
+            document.getElementById('game-over-overlay').classList.add('hidden');
+            
+            // Restore hidden elements (just in case)
+            document.getElementById('hunger-emoji').classList.remove('hidden');
+            document.getElementById('hunger-message').classList.remove('hidden');
+
+            startGame(); // Go straight into the game
+        }
+
+
+        // --- Question Generation Logic (Unchanged) ---
+
+        const MAX_VAL = 12;
+
+        function randInt(min, max) {
+            return Math.floor(Math.random() * (max - min + 1)) + min;
+        }
+
+        function generateDecoys(correctAnswer) {
+            const decoys = new Set();
+            decoys.add(correctAnswer);
+            let count = 0;
+            const isOperator = typeof correctAnswer === 'string' && ['+', '-', '*', '/'].includes(correctAnswer);
+
+            while (decoys.size < 3 && count < 10) {
+                let decoy;
+                if (isOperator) {
+                    const ops = ['+', '-', '*', '/'];
+                    const remainingOps = ops.filter(op => op !== correctAnswer);
+                    decoy = remainingOps[randInt(0, remainingOps.length - 1)];
+                } else {
+                    let offset = randInt(-3, 3);
+                    if (offset === 0) offset = 1;
+                    decoy = parseInt(correctAnswer) + offset;
+                    if (decoy < 0) decoy = 0;
+                    if (decoy > 150) decoy = parseInt(correctAnswer) - 1;
+                }
+                
+                if (!decoys.has(decoy.toString())) {
+                    decoys.add(decoy.toString());
+                }
+                count++;
+            }
+            
+            let options = Array.from(decoys);
+            for (let i = options.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [options[i], options[j]] = [options[j], options[i]];
+            }
+            return options;
+        }
+
+        function generateQuestion() {
+            document.getElementById('feedback').textContent = '';
+            
+            let a, b, c, d;
+            const opIndex = randInt(0, 3);
+            const operators = ['+', '-', '*', '/'];
+            b = operators[opIndex];
+
+            // Generate numbers for clean integer math
+            if (b === '+') {
+                a = randInt(5, MAX_VAL * 2);
+                c = randInt(1, MAX_VAL);
+                d = a + c;
+            } else if (b === '-') {
+                d = randInt(1, MAX_VAL);
+                c = randInt(1, MAX_VAL - 1);
+                a = d + c;
+            } else if (b === '*') {
+                a = randInt(1, MAX_VAL);
+                c = randInt(1, MAX_VAL);
+                d = a * c;
+            } else if (b === '/') {
+                c = randInt(1, MAX_VAL / 2);
+                d = randInt(1, MAX_VAL / 2);
+                a = c * d;
+            }
+
+            gameState.a = a;
+            gameState.b = b;
+            gameState.c = c;
+            gameState.d = d;
+
+            const vars = ['a', 'b', 'c', 'd'];
+            const blankIndex = randInt(0, 3);
+            gameState.blanked_var = vars[blankIndex];
+            gameState.correct_answer = gameState[gameState.blanked_var].toString();
+            
+            startTimer(); 
+            updateUI();
+        }
+
+        function updateUI() {
+            const { a, b, c, d, blanked_var } = gameState;
+            
+            const components = { 
+                'a': document.getElementById('comp-a'), 
+                'b': document.getElementById('comp-b'), 
+                'c': document.getElementById('comp-c'), 
+                'd': document.getElementById('comp-d') 
+            };
+            const values = { 'a': a, 'b': b, 'c': c, 'd': d };
+
+            for (const key in components) {
+                components[key].classList.remove('blank');
+                components[key].textContent = values[key];
+            }
+
+            components[blanked_var].textContent = '?';
+            components[blanked_var].classList.add('blank');
+
+            document.getElementById('current-score').textContent = currentScore;
+            updateHungerUI(); 
+
+            const options = generateDecoys(gameState.correct_answer);
+            const ansButtons = [document.getElementById('ans-1'), document.getElementById('ans-2'), document.getElementById('ans-3')];
+            
+            ansButtons.forEach((btn, index) => {
+                btn.textContent = options[index];
+                btn.disabled = false;
+                btn.classList.remove('bg-green-500', 'bg-red-500', 'bg-red-400');
+                btn.classList.add('bg-indigo-500');
+            });
+        }
+
+        async function checkAnswer(selectedAnswer) {
+            if (timerInterval === null) return; 
+
+            const ansButtons = [document.getElementById('ans-1'), document.getElementById('ans-2'), document.getElementById('ans-3')];
+            ansButtons.forEach(btn => btn.disabled = true);
+            stopTimer(); 
+            
+            if (selectedAnswer === gameState.correct_answer) {
+                // Correct Answer
+                ansButtons.find(btn => btn.textContent === selectedAnswer).classList.replace('bg-indigo-500', 'bg-green-500');
+                currentScore++;
+            } else {
+                // Wrong Answer (Decrease score by 1)
+                ansButtons.find(btn => btn.textContent === selectedAnswer).classList.replace('bg-indigo-500', 'bg-red-500');
+                ansButtons.find(btn => btn.textContent === gameState.correct_answer).classList.replace('bg-indigo-500', 'bg-green-500');
+                currentScore -= 1; 
+            }
+            
+            // Always display the correct answer and clear the blank
+            document.getElementById(`comp-${gameState.blanked_var}`).textContent = gameState.correct_answer;
+            document.getElementById(`comp-${gameState.blanked_var}`).classList.remove('blank');
+
+            // Update score display
+            document.getElementById('current-score').textContent = currentScore;
+            
+            // Check for Game Over on negative score
+            if (currentScore < 0) {
+                gameOver('SCORE'); // Pass reason: NEGATIVE SCORE
+                return; 
+            }
+
+            // Check and save High Score
+            if (currentScore > highScore) {
+                await saveHighScore();
+            }
+
+            // Proceed to next question after visual feedback
+            const delay = selectedAnswer === gameState.correct_answer ? 500 : 1000;
+            setTimeout(generateQuestion, delay);
+        }
+        
+        // Start Firebase Initialization and Game Load
+        document.getElementById('loading-overlay').classList.remove('hidden');
+        window.onload = initFirebase;
+
+    </script>
+</body>
+</html>
